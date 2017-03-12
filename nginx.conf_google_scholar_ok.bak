@@ -1,0 +1,95 @@
+
+user  nginx;
+worker_processes  1;
+
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    include /etc/nginx/conf.d/*.conf;
+upstream www.google.com {
+    server 172.217.0.4:443 weight=1;
+    server 172.217.1.36:443 weight=1;
+    server 216.58.193.196:443 weight=1;
+    server 216.58.216.4:443 weight=1;
+    server 216.58.216.36:443 weight=1;
+    server 172.217.5.196:443 weight=1;
+    server 216.58.195.68:443 weight=1;
+}
+
+# 这里将http的访问强制跳转到https，<domain.name>改为自己的域名。
+server { 
+    listen 80;
+    server_name google.sandyplus.com;
+    # http to https
+    location / {
+         rewrite ^/(.*)$ https://google.sandyplus.com/$1 permanent;
+    }
+}
+
+server {
+    listen 80;
+    server_name scholar.sandyplus.com;
+    # http to https
+    location / {
+         rewrite ^/(.*)$ https://google.sandyplus.com/scholar/$1 permanent;
+    }
+}
+
+# https的设置
+server {
+    listen       443 ssl;
+    server_name  google.sandyplus.com;
+    resolver 8.8.8.8;
+    
+    # SSL证书的设置，<path to ssl.xxx>改为自己的证书路径
+    ssl on;
+    ssl_certificate /root/1_www.sandyplus.com_bundle.crt;
+    ssl_certificate_key /root/sandyplus.pem;
+
+    # 防止网络爬虫
+    #forbid spider
+    if ($http_user_agent ~* "qihoobot|Baiduspider|Googlebot|Googlebot-Mobile|Googlebot-Image|Mediapartners-Google|Adsbot-Google|Feedfetcher-Google|Yahoo! Slurp|Yahoo! Slurp China|YoudaoBot|Sosospider|Sogou spider|Sogou web spider|MSNBot|ia_archiver|Tomato Bot") 
+    { 
+        return 403; 
+    }
+
+    # 禁止用其他域名或直接用IP访问，只允许指定的域名
+    ##forbid illegal domain
+    ##if ( $host != "<domain.name>" ) {
+    ##    return 403; 
+    ##}
+
+    access_log  off;
+    error_log   on;
+    error_log  /var/log/nginx/google-proxy-error.log;
+	
+    # 编译时加了 ngx_http_google_filter_module 模块，location的设置就非常简单
+    location / {
+        google on;
+        google_scholar on;
+    }
+}
+}
